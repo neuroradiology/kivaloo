@@ -15,7 +15,7 @@
 #include "wire.h"
 
 #define BENCHMARK_START 50	/* Seconds before starting to record. */
-#define BENCHMARK_SECONDS 10	/* Seconds to record. */
+#define BENCHMARK_SECONDS 9	/* Seconds to record (odd number preferred). */
 
 struct bulkupdate_state {
 	/* State used for spewing requests. */
@@ -128,12 +128,19 @@ err0:
 }
 
 static int
+compar(const void * a, const void * b)
+{
+
+	return (*(uint64_t *)a - *(uint64_t *)b);
+}
+
+static int
 bulkupdate(struct wire_requestqueue * Q, FILE * f)
 {
 	struct bulkupdate_state C;
 	struct timeval tv_now;
 	uint8_t buf[40];	/* dummy */
-	uint64_t Nmean = 0;
+	uint64_t Nmedian;
 
 	/* Initialize. */
 	C.Q = Q;
@@ -171,11 +178,10 @@ bulkupdate(struct wire_requestqueue * Q, FILE * f)
 		goto err2;
 	}
 
-	/* Print number of updates performed in a single second. */
-	for (C.Npos = 0; C.Npos < BENCHMARK_SECONDS; C.Npos++)
-		Nmean += C.Ns[C.Npos];
-	Nmean /= BENCHMARK_SECONDS;
-	printf("%" PRIu64 "\n", Nmean);
+	/* Print median number of updates performed in a single second. */
+	qsort(C.Ns, BENCHMARK_SECONDS, sizeof(uint64_t), compar);
+	Nmedian = C.Ns[BENCHMARK_SECONDS/2];
+	printf("%" PRIu64 "\n", Nmedian);
 
 	/* Free the key and value structures. */
 	kvldskey_free(C.val);
