@@ -14,6 +14,9 @@
 #include "warnp.h"
 #include "wire.h"
 
+#define BENCHMARK_START 50	/* Seconds before starting to record. */
+#define BENCHMARK_SECONDS 10	/* Seconds to record. */
+
 struct bulkupdate_state {
 	/* State used for spewing requests. */
 	struct wire_requestqueue * Q;
@@ -91,7 +94,7 @@ callback_done(void * cookie, int failed)
 		goto err0;
 	}
 
-	/* Are we finished?  Are we within the 50-60 second range? */
+	/* Are we finished?  Are we within the target range of seconds? */
 	if ((tv_now.tv_sec > C->tv_end.tv_sec) ||
 	    ((tv_now.tv_sec == C->tv_end.tv_sec) &&
 		(tv_now.tv_usec > C->tv_end.tv_usec))) {
@@ -136,14 +139,14 @@ bulkupdate(struct wire_requestqueue * Q, FILE * f)
 	if ((C.val = kvldskey_create(buf, 40)) == NULL)
 		goto err1;
 
-	/* Get current time and store T+60s and T+50s. */
+	/* Get current time and prepare benchmark time values. */
 	if (monoclock_get(&tv_now)) {
 		warnp("Error reading clock");
 		goto err2;
 	}
-	C.tv_end.tv_sec = tv_now.tv_sec + 60;
+	C.tv_end.tv_sec = tv_now.tv_sec + BENCHMARK_START + BENCHMARK_SECONDS;
 	C.tv_end.tv_usec = tv_now.tv_usec;
-	C.tv_start.tv_sec = tv_now.tv_sec + 50;
+	C.tv_start.tv_sec = tv_now.tv_sec + BENCHMARK_START;
 	C.tv_start.tv_usec = tv_now.tv_usec;
 
 	/* Send an initial batch of 4096 requests. */
@@ -157,7 +160,7 @@ bulkupdate(struct wire_requestqueue * Q, FILE * f)
 	}
 
 	/* Print number of updates performed in a single second. */
-	printf("%" PRIu64 "\n", C.N / 10);
+	printf("%" PRIu64 "\n", C.N / BENCHMARK_SECONDS);
 
 	/* Free the key and value structures. */
 	kvldskey_free(C.val);
