@@ -33,7 +33,8 @@ struct bulkupdate_state {
 	/* Bits needed for measuring performance. */
 	struct timeval tv_end;
 	struct timeval tv_start;
-	uint64_t N;
+	uint64_t Ns[BENCHMARK_SECONDS];
+	int Npos;
 };
 
 static int callback_done(void *, int);
@@ -98,11 +99,20 @@ callback_done(void * cookie, int failed)
 	if ((tv_now.tv_sec > C->tv_end.tv_sec) ||
 	    ((tv_now.tv_sec == C->tv_end.tv_sec) &&
 		(tv_now.tv_usec > C->tv_end.tv_usec))) {
-		C->done = 1;
+		/* Stop again in 1 second. */
+		C->tv_end.tv_sec = tv_now.tv_sec + 1;
+		C->tv_end.tv_usec = tv_now.tv_usec;
+
+		/* Record number in a new array position. */
+		C->Npos++;
+
+		/* Should we stop now? */
+		if (C->Npos >= BENCHMARK_SECONDS)
+			C->done = 1;
 	} else if ((tv_now.tv_sec > C->tv_start.tv_sec) ||
 	    ((tv_now.tv_sec == C->tv_start.tv_sec) &&
 		(tv_now.tv_usec > C->tv_start.tv_usec))) {
-		C->N += 1;
+		C->Ns[C->Npos] += 1;
 	}
 
 	/* Send more requests if possible. */
@@ -123,6 +133,7 @@ bulkupdate(struct wire_requestqueue * Q, FILE * f)
 	struct bulkupdate_state C;
 	struct timeval tv_now;
 	uint8_t buf[40];	/* dummy */
+	uint64_t Nmean = 0;
 
 	/* Initialize. */
 	C.Q = Q;
@@ -131,7 +142,8 @@ bulkupdate(struct wire_requestqueue * Q, FILE * f)
 	C.generation = 0;
 	C.failed = 0;
 	C.done = 0;
-	C.N = 0;
+	C.Npos = 0;
+	memset(C.Ns, 0, BENCHMARK_SECONDS * sizeof(uint64_t));
 
 	/* Allocate key and value structures. */
 	if ((C.key = kvldskey_create(buf, 40)) == NULL)
@@ -144,7 +156,7 @@ bulkupdate(struct wire_requestqueue * Q, FILE * f)
 		warnp("Error reading clock");
 		goto err2;
 	}
-	C.tv_end.tv_sec = tv_now.tv_sec + BENCHMARK_START + BENCHMARK_SECONDS;
+	C.tv_end.tv_sec = tv_now.tv_sec + BENCHMARK_START + 1;
 	C.tv_end.tv_usec = tv_now.tv_usec;
 	C.tv_start.tv_sec = tv_now.tv_sec + BENCHMARK_START;
 	C.tv_start.tv_usec = tv_now.tv_usec;
@@ -160,7 +172,10 @@ bulkupdate(struct wire_requestqueue * Q, FILE * f)
 	}
 
 	/* Print number of updates performed in a single second. */
-	printf("%" PRIu64 "\n", C.N / BENCHMARK_SECONDS);
+	for (C.Npos = 0; C.Npos < BENCHMARK_SECONDS; C.Npos++)
+		Nmean += C.Ns[C.Npos];
+	Nmean /= BENCHMARK_SECONDS;
+	printf("%" PRIu64 "\n", Nmean);
 
 	/* Free the key and value structures. */
 	kvldskey_free(C.val);
