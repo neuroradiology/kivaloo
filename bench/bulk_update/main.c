@@ -105,6 +105,7 @@ callback_done(void * cookie, int failed)
 
 		/* Record number in a new array position. */
 		C->Npos++;
+		C->Ns[C->Npos] += 1;
 
 		/* Should we stop now? */
 		if (C->Npos >= BENCHMARK_SECONDS)
