@@ -131,7 +131,7 @@ static int
 compar(const void * a, const void * b)
 {
 
-	return (*(uint64_t *)a - *(uint64_t *)b);
+	return (*(uint64_t *)a > *(uint64_t *)b);
 }
 
 static int
